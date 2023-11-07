@@ -36,10 +36,12 @@
 #include <adc_sensors/adc_sensors.h>
 #include <avr/io.h>
 
+// Set pin J4_PIN0 sebagai pin untuk Fan
 #define PORT_FAN 	J4_PIN0
 
 static char strbuf[128];
 
+// Inisiasi PWM untuk servo
 void PWM_Init(void)
 {
 	/* Set output */
@@ -59,63 +61,86 @@ void PWM_Init(void)
 
 int main (void)
 {
-	/* Insert system clock initialization code here (sysclk_init()). */
+	/* Inisiasi board, pwm, dan sensor. */
 	board_init();
 	PWM_Init();
 	gfx_mono_init();
 	adc_sensors_init();
-
 	pmic_init();
 	cpu_irq_enable();
 
+	// Menyalakan backlight layar
 	gpio_set_pin_high(LCD_BACKLIGHT_ENABLE_PIN);
 
+	// Set sec = -1 sebagai flag
 	int sec = -1;
 
 	// Set PORTE sebagai output
 	PORTE.DIR = 0b11111111;
+	// SET CCA = 7 untuk menentukkan arah Servo
 	TCC0.CCA = 7;
+
+	// Membaca suhu dari NTC sensor
 	ntc_measure();
 	while(!ntc_data_is_ready());
+	// Mengambil suhu dalam satuan celsius
 	volatile int8_t temperature = ntc_get_temperature();
 	
-	while(1){		
+	while(1){
 		ntc_measure();
 		if (ntc_data_is_ready()) temperature = ntc_get_temperature();
 
-		if (temperature >= 30){
+		// Cek apakah suhu melebihi atau sama 30 derajat celsius
+		if (temperature >= 35){
+			// Menampilkan tulisan ke layar
 			snprintf(strbuf, sizeof(strbuf), "SUHU Tinggi");
 			gfx_mono_draw_string(strbuf, 0, 0, &sysfont);
+			// Menyalakan kipas
 			ioport_set_pin_low(PORT_FAN);
 			LED_On(LED0);
+			// Mematikan LED
 			LED_Off(LED1);
+			
+			// Menghitung nilai detik
 			if (sec == -1) sec = 0;
 			int jam = sec/3600;
 			int menit = (sec % 3600) / 60;
 			int detik = sec % 60;
+			// Jika sudah mencapai 5 menit, servo akan berputar untuk membuka pintu
 			if (sec > 300 ) {
 				TCC0.CCA = 37;
 			}
+			// Menampilkan waktu ke layar
 			snprintf(strbuf, sizeof(strbuf), "Timer: %2d %2d %2d", jam, menit, detik);
 			gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
 		}
-		else if (temperature < 30) {
+		// Cek apakah suhu dibawah 30 derajat celsius
+		else if (temperature < 35) {
+			// Membuat flag
 			sec = -1;
+
+			// Menampilkan tulisan ke layar
 			snprintf(strbuf, sizeof(strbuf), "SUHU Normal");
 			gfx_mono_draw_string(strbuf, 0, 0, &sysfont);
+			// Mematikan fan
 			ioport_set_pin_high(PORT_FAN);
+
+			// Menyalakan LED
 			LED_On(LED0);
 			LED_On(LED1);
+			// Mengatur arah servo
 			TCC0.CCA = 7;
 			snprintf(strbuf, sizeof(strbuf), "Timer mati        ");
 			gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
 		}
 
+		// Memberikan delay agar sama dengan 1 detik
 		delay_ms(250);
 		sec++;
+
+		// Menampilkan suhu di layar
 		snprintf(strbuf, sizeof(strbuf), "Tempr : %3d",temperature);
 		gfx_mono_draw_string(strbuf,0, 24, &sysfont);
 	}
 
-	/* Insert application code here, after the board has been initialized. */
 }
