@@ -85,62 +85,78 @@ int main (void)
 	while(!ntc_data_is_ready());
 	// Mengambil suhu dalam satuan celsius
 	volatile int8_t temperature = ntc_get_temperature();
-	
+
+	// State
+	// -1: Init state 
+	// 0: Temperature < 35
+	// 1: Temperature >= 35, Timer < 1 menit
+	// 2: Temperature >= 35, Timer >= 1 menit
+	int state = -1;
+
 	while(1){
 		ntc_measure();
 		if (ntc_data_is_ready()) temperature = ntc_get_temperature();
 
-		// Cek apakah suhu melebihi atau sama 30 derajat celsius
-		if (temperature >= 35){
-			// Menampilkan tulisan ke layar
-			snprintf(strbuf, sizeof(strbuf), "SUHU Tinggi");
-			gfx_mono_draw_string(strbuf, 0, 0, &sysfont);
-			// Menyalakan kipas
-			ioport_set_pin_low(PORT_FAN);
-			LED_On(LED0);
-			// Mematikan LED
-			LED_Off(LED1);
-			
-			// Menghitung nilai detik
+		// Menampilkan suhu di layar
+		snprintf(strbuf, sizeof(strbuf), "Tempr : %3d",temperature);
+		gfx_mono_draw_string(strbuf,0, 24, &sysfont);
+
+		// Cek apakah suhu kurang dari 35 derajat celsius
+		if (temperature < 35) {
+			sec = -1;
+			if (state != 0) {
+				state = 0;
+
+				// Mengatur arah servo
+				TCC0.CCA = 7;
+				// Mematikan fan
+				ioport_set_pin_high(PORT_FAN);
+				// Menyalakan LED
+				LED_On(LED0);
+				LED_On(LED1);
+
+				// Menampilkan tulisan ke layar
+				snprintf(strbuf, sizeof(strbuf), "SUHU Normal");
+				gfx_mono_draw_string(strbuf, 0, 0, &sysfont);
+				snprintf(strbuf, sizeof(strbuf), "Timer mati        ");
+				gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
+				snprintf(strbuf, sizeof(strbuf), "                         ");
+				gfx_mono_draw_string(strbuf, 0, 16, &sysfont);
+			}
+		} else if (temperature >= 35) {
+			if (state == 0) {
+				state = 1;
+
+				// Menyalakan kipas
+				ioport_set_pin_low(PORT_FAN);
+				// Menyalakan LED
+				LED_On(LED0);
+				LED_Off(LED1);
+
+				// Menampilkan tulisan ke layar
+				snprintf(strbuf, sizeof(strbuf), "SUHU Tinggi");
+				gfx_mono_draw_string(strbuf, 0, 0, &sysfont);
+			} else if (state == 1 && sec >= 60) {
+				state = 2;
+
+				// Mengatur arah servo
+				TCC0.CCA = 37;
+
+				// Menampilkan tulisan ke layar
+				snprintf(strbuf, sizeof(strbuf), "!! > 1 MENIT !!");
+				gfx_mono_draw_string(strbuf, 0, 16, &sysfont);
+			}
+			// Menampilkan waktu ke layar
 			if (sec == -1) sec = 0;
 			int jam = sec/3600;
 			int menit = (sec % 3600) / 60;
 			int detik = sec % 60;
-			// Jika sudah mencapai 5 menit, servo akan berputar untuk membuka pintu
-			if (sec > 300 ) {
-				TCC0.CCA = 37;
-			}
-			// Menampilkan waktu ke layar
-			snprintf(strbuf, sizeof(strbuf), "Timer: %2d %2d %2d", jam, menit, detik);
-			gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
-		}
-		// Cek apakah suhu dibawah 30 derajat celsius
-		else if (temperature < 35) {
-			// Membuat flag
-			sec = -1;
-
-			// Menampilkan tulisan ke layar
-			snprintf(strbuf, sizeof(strbuf), "SUHU Normal");
-			gfx_mono_draw_string(strbuf, 0, 0, &sysfont);
-			// Mematikan fan
-			ioport_set_pin_high(PORT_FAN);
-
-			// Menyalakan LED
-			LED_On(LED0);
-			LED_On(LED1);
-			// Mengatur arah servo
-			TCC0.CCA = 7;
-			snprintf(strbuf, sizeof(strbuf), "Timer mati        ");
+			snprintf(strbuf, sizeof(strbuf), "Timer: %2dh %2dm %2ds", jam, menit, detik);
 			gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
 		}
 
-		// Memberikan delay agar sama dengan 1 detik
-		delay_ms(250);
+		// Delay dan increment total waktu berjalan
+		delay_ms(350);
 		sec++;
-
-		// Menampilkan suhu di layar
-		snprintf(strbuf, sizeof(strbuf), "Tempr : %3d",temperature);
-		gfx_mono_draw_string(strbuf,0, 24, &sysfont);
 	}
-
 }
