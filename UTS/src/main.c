@@ -59,6 +59,17 @@ void PWM_Init(void)
 	TCC0.CCA = 375;
 }
 
+// Menampilkan waktu ke layar
+void print_time(int sec) {
+	if (sec == -1) sec = 0;
+	int jam = sec/3600;
+	int menit = (sec % 3600) / 60;
+	int detik = sec % 60;
+	snprintf(strbuf, sizeof(strbuf), "Timer: %2dh %2dm %2ds", jam, menit, detik);
+	gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
+}
+
+
 int main (void)
 {
 	/* Inisiasi board, pwm, dan sensor. */
@@ -147,12 +158,7 @@ int main (void)
 				gfx_mono_draw_string(strbuf, 0, 16, &sysfont);
 			}
 			// Menampilkan waktu ke layar
-			if (sec == -1) sec = 0;
-			int jam = sec/3600;
-			int menit = (sec % 3600) / 60;
-			int detik = sec % 60;
-			snprintf(strbuf, sizeof(strbuf), "Timer: %2dh %2dm %2ds", jam, menit, detik);
-			gfx_mono_draw_string(strbuf, 0, 8, &sysfont);
+			print_time(sec);
 		}
 
 		// Delay dan increment total waktu berjalan
